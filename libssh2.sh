@@ -147,8 +147,13 @@ if [ ! -e "libssh2-$VERSION.tar.gz" ]
 then
     curl -OL "https://www.libssh2.org/download/libssh2-${LIBSSH2}.tar.gz"
 fi
-#rm -R libssh2-${LIBSSH2}
-#tar xvfz libssh2-${LIBSSH2}.tar.gz
+if [ -e "libssh2-$VERSION" ]
+then
+  rm -R libssh2-${LIBSSH2}
+fi
+
+tar xvfz libssh2-${LIBSSH2}.tar.gz
+
 cd libssh2-${LIBSSH2}
 
 
