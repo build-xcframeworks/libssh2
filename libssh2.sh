@@ -67,7 +67,10 @@ echo "---"
 
 set -e
 
-rm -R libressl
+if [ -e "libressl" ]
+then
+  rm -R libressl
+fi
 
 mkdir -p libressl/ios/lib
 cp -R ${LIBRESSL}/libssl.xcframework/ios-arm64/Headers libressl/ios/include
