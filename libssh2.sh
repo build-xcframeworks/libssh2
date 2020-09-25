@@ -1,5 +1,4 @@
-
-
+#!/bin/bash
 
 if [ -z "$LIBSSH2" ]
 then
@@ -36,15 +35,14 @@ declare -a appleSiliconTargets=("simulator_arm64" "simulator_x86_64" "catalyst_x
 
 if [ -z "$build_targets" ]
 then
-  #declare -a build_targets=("ios-arm64" "macos_x86_64" "catalyst_x86_64" "simulator_x86_64")
-  declare -a build_targets=("simulator_x86_64")
+  #declare -a build_targets=("macos_x86_64" "catalyst_x86_64" "simulator_x86_64" "macos_arm64" "ios-arm64" "macos_arm64")
+  declare -a build_targets=()
   
 fi
 
 if [ -z "link_targets" ]
 then
-  #declare -a link_targets=("ios-arm64" "macos_x86_64" "catalyst_x86_64" "simulator_x86_64")
-  declare -a link_targets=("simulator_x86_64")
+  declare -a link_targets=("macos_x86_64" "catalyst_x86_64" "simulator_x86_64" "macos_arm64" "ios-arm64" "macos_arm64")
 fi
 
 
@@ -95,7 +93,8 @@ cp -R ${LIBRESSL}/libcrypto.xcframework/*-maccatalyst/libcrypto.a libressl/catal
 
 PREFIX=$(pwd)/build
 OUTPUT=$(pwd)/Fat
-XCFRAMEWORKS=$(pwd)/output/
+XCFRAMEWORKS=$(pwd)/output
+ROOT=$(pwd)
 
 mkdir -p $PREFIX
 mkdir -p $OUTPUT
@@ -143,20 +142,168 @@ needsRebuilding() {
 
 }
 
-if [ ! -e "libssh2-$VERSION.tar.gz" ]
-then
+resetLibSSH() {
+  cd $ROOT
+  if [ ! -e "libssh2-$VERSION.tar.gz" ]
+  then
     curl -OL "https://www.libssh2.org/download/libssh2-${LIBSSH2}.tar.gz"
-fi
-if [ -e "libssh2-$VERSION" ]
-then
-  rm -R libssh2-${LIBSSH2}
-fi
+  fi
+  if [ -e "libssh2-$VERSION" ]
+  then
+    rm -R libssh2-${LIBSSH2}
+  fi
 
-tar xvfz libssh2-${LIBSSH2}.tar.gz
+  tar xvfz libssh2-${LIBSSH2}.tar.gz
 
-cd libssh2-${LIBSSH2}
+  cd libssh2-${LIBSSH2}
+}
 
 
+
+#####################################
+##  iOS simulator x86_64 Compilation
+#####################################
+
+target=simulator_x86_64
+if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
+  
+  resetLibSSH  
+  printf "\n\n--> iOS simulator x86_64 Compilation: $target"
+
+  DEVROOT=$XCODE/Platforms/iPhoneSimulator.platform/Developer
+  SDKROOT=$DEVROOT/SDKs/iPhoneSimulator${IOS}.sdk
+  LIBRESSLROOT_RELATIVE=`pwd`/../libressl/simulator
+  LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
+
+  ./configure --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --host=x86_64-apple-darwin --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
+    CC="/usr/bin/clang" \
+    CPPFLAGS="-I$SDKROOT/usr/include/ -I${LIBRESSLROOT}/include" \
+    CFLAGS="$CPPFLAGS -arch x86_64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp -isysroot $SDKROOT" \
+    CPP="/usr/bin/cpp $CPPFLAGS" \
+    LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
+  
+  make clean
+  make -j 4 install \
+    CC="/usr/bin/clang" \
+    CPPFLAGS="-I$SDKROOT/usr/include/ -I${LIBRESSLROOT}/include" \
+    CFLAGS="$CPPFLAGS -arch x86_64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp -isysroot $SDKROOT" \
+    CPP="/usr/bin/cpp $CPPFLAGS" \
+    LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
+	  
+  printf "\n\n--> XX iOS simulator x86_64 Compilation"
+  mv $PREFIX/$target/include/*.h $OUTPUT/$target/include
+  mv $PREFIX/$target/lib/libssh2.a $OUTPUT/$target/lib
+
+fi;
+
+
+#############################
+##  macOS x86_64 Compilation
+#############################
+
+target=macos_x86_64
+if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
+  
+  resetLibSSH  
+  printf "\n\n--> macOS x86_64 Compilation: $target"
+
+  DEVROOT=$XCODE/Platforms/MacOSX.platform/Developer
+  SDKROOT=$DEVROOT/SDKs/MacOSX${MACOSX}.sdk
+  LIBRESSLROOT_RELATIVE=`pwd`/../libressl/macos
+  LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
+
+  ./configure --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --host=x86_64-apple-darwin --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
+    CC="/usr/bin/clang -isysroot $SDKROOT" \
+    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
+    CFLAGS="$CPPFLAGS -arch x86_64 -pipe -no-cpp-precomp" \
+    CPP="/usr/bin/cpp $CPPFLAGS" \
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
+  
+  make clean
+  make -j 4 install \
+    CC="/usr/bin/clang -isysroot $SDKROOT" \
+    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
+    CFLAGS="$CPPFLAGS -arch x86_64 -pipe -no-cpp-precomp" \
+    CPP="/usr/bin/cpp $CPPFLAGS" \
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
+	  
+  printf "\n\n--> XX macOS x86_64 Compilation"
+  mv $PREFIX/$target/include/*.h $OUTPUT/$target/include
+  mv $PREFIX/$target/lib/libssh2.a $OUTPUT/$target/lib
+
+fi;
+
+############################
+##  macOS arm64 Compilation
+############################
+
+target=macos_arm64
+if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
+  
+  resetLibSSH  
+  printf "\n\n--> macOS arm64 Compilation: $target"
+
+  DEVROOT=$XCODE/Platforms/MacOSX.platform/Developer
+  SDKROOT=$DEVROOT/SDKs/MacOSX${MACOSX}.sdk
+  LIBRESSLROOT_RELATIVE=`pwd`/../libressl/macos
+  LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
+
+  ./configure --build=aarch64-apple-darwin --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --host=aarch64-apple-darwin --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
+    CC="/usr/bin/clang -isysroot $SDKROOT" \
+    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
+    CFLAGS="$CPPFLAGS -arch arm64 -pipe -no-cpp-precomp" \
+    CPP="/usr/bin/cpp $CPPFLAGS" \
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
+  
+  make clean
+  make -j 4 install \
+    CC="/usr/bin/clang -isysroot $SDKROOT" \
+    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
+    CFLAGS="$CPPFLAGS -arch arm64 -pipe -no-cpp-precomp" \
+    CPP="/usr/bin/cpp $CPPFLAGS" \
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
+	  
+  printf "\n\n--> XX macOS arm64 Compilation"
+  mv $PREFIX/$target/include/*.h $OUTPUT/$target/include
+  mv $PREFIX/$target/lib/libssh2.a $OUTPUT/$target/lib
+
+fi;
+
+#######################################
+##  macOS Catalyst x86_64 Compilation
+#######################################
+
+target=catalyst_x86_64
+if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
+  
+  resetLibSSH  
+  printf "\n\n--> macOS Catalyst x86_64 Compilation: $target"
+
+  DEVROOT=$XCODE/Platforms/MacOSX.platform/Developer
+  SDKROOT=$DEVROOT/SDKs/MacOSX${MACOSX}.sdk
+  LIBRESSLROOT_RELATIVE=`pwd`/../libressl/catalyst
+  LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
+
+  ./configure --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --host=x86_64-apple-darwin --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
+    CC="/usr/bin/clang -target x86_64-apple-ios${IOS}-macabi -isysroot $SDKROOT" \
+    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
+    CFLAGS="$CPPFLAGS -arch x86_64 -pipe -no-cpp-precomp" \
+    CPP="/usr/bin/cpp $CPPFLAGS" \
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
+
+  make clean
+  make -j 4 install \
+    CC="/usr/bin/clang -target x86_64-apple-ios${IOS}-macabi -isysroot $SDKROOT" \
+    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
+    CFLAGS="$CPPFLAGS -arch x86_64 -pipe -no-cpp-precomp" \
+    CPP="/usr/bin/cpp $CPPFLAGS" \
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
+	  
+  printf "\n\n--> XX macOS Catalyst x86_64 Compilation"
+  mv $PREFIX/$target/include/*.h $OUTPUT/$target/include
+  mv $PREFIX/$target/lib/libssh2.a $OUTPUT/$target/lib
+
+fi;
 
 ##########################
 ##  iOS arm64 Compilation
@@ -164,8 +311,9 @@ cd libssh2-${LIBSSH2}
 
 target=ios-arm64
 if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
-  
-  printf "\n\n--> iOS arm64 Compilation"
+
+  resetLibSSH  
+  printf "\n\n--> iOS arm64 Compilation: $target"
 
   DEVROOT=$XCODE/Platforms/iPhoneOS.platform/Developer
   SDKROOT=$DEVROOT/SDKs/iPhoneOS${IOS}.sdk
@@ -179,6 +327,7 @@ if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
     CPP="/usr/bin/cpp -D__arm__=1 $CPPFLAGS" \
     LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
   
+  make clean
   make -j 4 install \
       CC="/usr/bin/clang -isysroot $SDKROOT" \
       CPPFLAGS="-fembed-bitcode -I`pwd`/../libressl/ios/include -I$SDKROOT/usr/include/" \
@@ -187,107 +336,131 @@ if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
       LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
 	  
   printf "\n\n--> XX iOS arm64 Compilation"
-  #moveLibreSSLOutputInPlace $target $OUTPUT
-
-fi;
-
-#####################################
-##  iOS simulator x86_64 Compilation
-#####################################
-
-target=simulator_x86_64
-if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
-  
-  printf "\n\n--> iOS simulator x86_64 Compilation"
-
-  DEVROOT=$XCODE/Platforms/iPhoneSimulator.platform/Developer
-  SDKROOT=$DEVROOT/SDKs/iPhoneSimulator${IOS}.sdk
-  LIBRESSLROOT_RELATIVE=`pwd`/../libressl/simulator
-  LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
-
-  ./configure --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --host=aarch64-apple-darwin --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
-    CC="/usr/bin/clang" \
-    CPPFLAGS="-I$SDKROOT/usr/include/ -I${LIBRESSLROOT}/include" \
-    CFLAGS="$CPPFLAGS -arch x86_64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp -isysroot $SDKROOT" \
-    CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
-  
-  make -j 4 install \
-    CC="/usr/bin/clang" \
-    CPPFLAGS="-I$SDKROOT/usr/include/ -I${LIBRESSLROOT}/include" \
-    CFLAGS="$CPPFLAGS -arch x86_64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp -isysroot $SDKROOT" \
-    CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
-	  
-  printf "\n\n--> XX iOS simulator x86_64 Compilation"
-  #moveLibreSSLOutputInPlace $target $OUTPUT
+  mv $PREFIX/$target/include/*.h $OUTPUT/$target/include
+  mv $PREFIX/$target/lib/libssh2.a $OUTPUT/$target/lib
 
 fi;
 
 
-#############################
-##  macOS x86_64 Compilation
-#############################
 
-target=macos_x86_64
-if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
-  
-  printf "\n\n--> macOS x86_64 Compilation"
 
-  DEVROOT=$XCODE/Platforms/MacOSX.platform/Developer
-  SDKROOT=$DEVROOT/SDKs/MacOSX${MACOSX}.sdk
-  LIBRESSLROOT_RELATIVE=`pwd`/../libressl/macos
-  LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
+## Lipo & XCFramework
 
-  ./configure --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --host=aarch64-apple-darwin --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
-    CC="/usr/bin/clang -isysroot $SDKROOT" \
-    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
-    CFLAGS="$CPPFLAGS -arch x86_64 -pipe -no-cpp-precomp" \
-    CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="/usr/bin/ld -L${LIBRESSLROOT}"
-  
-  make -j 4 install \
-    CC="/usr/bin/clang -isysroot $SDKROOT" \
-    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
-    CFLAGS="$CPPFLAGS -arch x86_64 -pipe -no-cpp-precomp" \
-    CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="/usr/bin/ld -L${LIBRESSLROOT}"
-	  
-  printf "\n\n--> XX macOS x86_64 Compilation"
-  #moveLibreSSLOutputInPlace $target $OUTPUT
+cd $ROOT
 
-fi;
+XCFRAMEWORK_CMD="xcodebuild -create-xcframework"
 
-#######################################
-##  macOS Catalyst x86_64 Compilation
-#######################################
+macos=()
+catalyst=()
+simulator=()
+ios=()
 
-target=catalyst_x86_64
-if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
-  
-  printf "\n\n--> macOS Catalyst x86_64 Compilation"
+for target in "${link_targets[@]}"
+do
+  if [[ $target == "ios-"* ]]; then
+    ios+=($target)
+  fi
+  if [[ $target == "simulator_"* ]]; then
+    simulator+=($target)
+  fi
+  if [[ $target == "catalyst_"* ]]; then
+    catalyst+=($target)
+  fi
+  if [[ $target == "macos_"* ]]; then
+    macos+=($target)
+  fi
+done
 
-  DEVROOT=$XCODE/Platforms/MacOSX.platform/Developer
-  SDKROOT=$DEVROOT/SDKs/MacOSX${MACOSX}.sdk
-  LIBRESSLROOT_RELATIVE=`pwd`/../libressl/catalyst
-  LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
+echo "ZZZZ"
+echo ${link_targets[*]}
+echo ${ios[*]}
+echo ${macos[*]}
+echo ${catalyst[*]}
+echo ${simulator[*]}
+echo "/ZZZZ"
 
-  ./configure --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --host=aarch64-apple-darwin --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
-    CC="/usr/bin/clang -target x86_64-apple-ios${IOS}-macabi -isysroot $SDKROOT" \
-    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
-    CFLAGS="$CPPFLAGS -arch x86_64 -pipe -no-cpp-precomp" \
-    CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="/usr/bin/ld -L${LIBRESSLROOT}"
+if [ ${#ios[@]} -gt 0 ]; then
+  lipo="lipo -create "
 
-  make -j 4 install \
-    CC="/usr/bin/clang -target x86_64-apple-ios${IOS}-macabi -isysroot $SDKROOT" \
-    CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
-    CFLAGS="$CPPFLAGS -arch x86_64 -pipe -no-cpp-precomp" \
-    CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="/usr/bin/ld -L${LIBRESSLROOT}"
-	  
-  printf "\n\n--> XX macOS Catalyst x86_64 Compilation"
-  #moveLibreSSLOutputInPlace $target $OUTPUT
+  mkdir -p $OUTPUT/ios/lib
+  mkdir -p $OUTPUT/ios/include
 
-fi;
+  for target in "${ios[@]}"
+  do
+    lipo="$lipo $OUTPUT/$target/lib/libssh2.a"
+    rsync -a $OUTPUT/$target/include/* $OUTPUT/ios/include
+  done
+
+  lipo="$lipo -output $OUTPUT/ios/lib/libssh2.a"
+  echo $lipo
+  eval $lipo
+
+  XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -library $OUTPUT/ios/lib/libssh2.a"
+  XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -headers $OUTPUT/ios/include"
+fi
+
+if [ ${#catalyst[@]} -gt 0 ]; then
+  lipo="lipo -create "
+
+  mkdir -p $OUTPUT/catalyst/lib
+  mkdir -p $OUTPUT/catalyst/include
+
+  for target in "${catalyst[@]}"
+  do
+    lipo="$lipo $OUTPUT/$target/lib/libssh2.a"
+    rsync -a $OUTPUT/$target/include/* $OUTPUT/catalyst/include
+  done
+
+  lipo="$lipo -output $OUTPUT/catalyst/lib/libssh2.a"
+  echo $lipo
+  eval $lipo
+
+  XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -library $OUTPUT/catalyst/lib/libssh2.a"
+  XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -headers $OUTPUT/catalyst/include"
+fi
+
+if [ ${#macos[@]} -gt 0 ]; then
+  lipo="lipo -create "
+
+  mkdir -p $OUTPUT/macos/lib
+  mkdir -p $OUTPUT/macos/include
+
+  for target in "${macos[@]}"
+  do
+    lipo="$lipo $OUTPUT/$target/lib/libssh2.a"
+    rsync -a $OUTPUT/$target/include/* $OUTPUT/macos/include
+  done
+
+  lipo="$lipo -output $OUTPUT/macos/lib/libssh2.a"
+  echo $lipo
+  eval $lipo
+
+  XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -library $OUTPUT/macos/lib/libssh2.a"
+  XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -headers $OUTPUT/macos/include"
+fi
+
+if [ ${#simulator[@]} -gt 0 ]; then
+  lipo="lipo -create "
+
+  mkdir -p $OUTPUT/simulator/lib
+  mkdir -p $OUTPUT/simulator/include
+
+  for target in "${simulator[@]}"
+  do
+    lipo="$lipo $OUTPUT/$target/lib/libssh2.a"
+    rsync -a $OUTPUT/$target/include/* $OUTPUT/simulator/include
+  done
+
+  lipo="$lipo -output $OUTPUT/simulator/lib/libssh2.a"
+  echo $lipo
+  eval $lipo
+
+  XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -library $OUTPUT/simulator/lib/libssh2.a"
+  XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -headers $OUTPUT/simulator/include"
+fi
+
+XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -output $XCFRAMEWORKS/libssh2.xcframework"
+
+echo $XCFRAMEWORK_CMD
+eval $XCFRAMEWORK_CMD
 
