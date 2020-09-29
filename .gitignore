@@ -4,3 +4,7 @@ libssh2-1.9.0
 *.zip
 3.?.?
 build
+/.DS_Store
+/Fat
+/libssh2
+/output
