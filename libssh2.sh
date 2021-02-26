@@ -35,18 +35,12 @@ declare -a appleSiliconTargets=("simulator_arm64" "simulator_x86_64" "catalyst_x
 
 if [ -z "$build_targets" ]
 then
-  #declare -a build_targets=("macos_x86_64" "catalyst_x86_64" "simulator_x86_64" "macos_arm64" "ios-arm64" "macos_arm64")
-  #declare -a build_targets=("macos_x86_64" "catalyst_x86_64" "simulator_x86_64"  "ios-arm64" "macos_arm64")
-  #declare -a build_targets=("macos_x86_64" "catalyst_x86_64" "simulator_x86_64" "ios-arm64")
-  declare -a build_targets=()
-  
+  declare -a build_targets=("macos_x86_64" "macos_arm64" "catalyst_x86_64" "catalyst_arm64" "simulator_x86_64" "ios-arm64")
 fi
 
 if [ -z "$link_targets" ]
 then
-  #declare -a link_targets=("macos_x86_64" "catalyst_x86_64" "simulator_x86_64" "macos_arm64" "ios-arm64" "macos_arm64")
-  #declare -a link_targets=("macos_x86_64" "catalyst_x86_64" "simulator_x86_64" "macos_arm64" "ios-arm64" "macos_arm64")
-  declare -a link_targets=("macos_x86_64" "catalyst_x86_64" "simulator_x86_64" "ios-arm64")
+  declare -a link_targets=("macos_x86_64" "macos_arm64" "catalyst_x86_64" "catalyst_arm64" "simulator_x86_64" "ios-arm64")
 fi
 
 XCODE=`/usr/bin/xcode-select -p`
@@ -88,14 +82,14 @@ cp -R ${LIBRESSL}/libssl.xcframework/*-simulator/libssl.a libressl/simulator/lib
 cp -R ${LIBRESSL}/libcrypto.xcframework/*-simulator/libcrypto.a libressl/simulator/lib
 
 mkdir -p libressl/macos/lib
-cp -R ${LIBRESSL}/libssl.xcframework/macos-*/Headers libressl/macos/include
-cp -R ${LIBRESSL}/libssl.xcframework/macos-*/libssl.a libressl/macos/lib
-cp -R ${LIBRESSL}/libcrypto.xcframework/macos-*/libcrypto.a libressl/macos/lib
+cp -R ${LIBRESSL}/libssl.xcframework/macos-arm64_x86_64//Headers libressl/macos/include
+cp -R ${LIBRESSL}/libssl.xcframework/macos-arm64_x86_64//libssl.a libressl/macos/lib
+cp -R ${LIBRESSL}/libcrypto.xcframework/macos-arm64_x86_64//libcrypto.a libressl/macos/lib
 
 mkdir -p libressl/catalyst/lib
-cp -R ${LIBRESSL}/libssl.xcframework/*-maccatalyst/Headers libressl/catalyst/include
-cp -R ${LIBRESSL}/libssl.xcframework/*-maccatalyst/libssl.a libressl/catalyst/lib
-cp -R ${LIBRESSL}/libcrypto.xcframework/*-maccatalyst/libcrypto.a libressl/catalyst/lib
+cp -R ${LIBRESSL}/libssl.xcframework/ios-arm64_x86_64-maccatalyst/Headers libressl/catalyst/include
+cp -R ${LIBRESSL}/libssl.xcframework/ios-arm64_x86_64-maccatalyst/libssl.a libressl/catalyst/lib
+cp -R ${LIBRESSL}/libcrypto.xcframework/ios-arm64_x86_64-maccatalyst/libcrypto.a libressl/catalyst/lib
 
 
 PREFIX=$(pwd)/build
@@ -180,13 +174,24 @@ if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
   LIBRESSLROOT_RELATIVE=`pwd`/../libressl/simulator
   LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
 
-  ./configure --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --host=x86_64-apple-darwin --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
+  ./configure \
+	--with-crypto=openssl \
+	--with-libssl-prefix=${LIBRESSLROOT} \
+	--host=x86_64-apple-darwin \
+	--prefix="$PREFIX/$target" \
+	--disable-debug \
+	--disable-dependency-tracking \
+	--disable-silent-rules \
+	--disable-examples-build \
+	--with-libz \
+	--disable-shared \
+	--enable-static \
     CC="/usr/bin/clang" \
     CPPFLAGS="-I$SDKROOT/usr/include/ -I${LIBRESSLROOT}/include" \
     CFLAGS="$CPPFLAGS -arch x86_64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp -isysroot $SDKROOT" \
     CPP="/usr/bin/cpp $CPPFLAGS" \
     LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
-  
+
   make clean
   make -j 4 install \
     CC="/usr/bin/clang" \
@@ -289,7 +294,19 @@ if needsRebuilding "$target" && elementIn "$target" "${build_targets[@]}"; then
   LIBRESSLROOT_RELATIVE=`pwd`/../libressl/macos
   LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
 
-  ./configure --build=aarch64-apple-darwin --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --host=aarch64-apple-darwin --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
+  ./configure \
+	--build=aarch64-apple-darwin \
+	--with-crypto=openssl \
+	--with-libssl-prefix=${LIBRESSLROOT} \
+	--host=arm-apple-darwin \
+	--prefix="$PREFIX/$target" \
+	--disable-debug \
+	--disable-dependency-tracking \
+	--disable-silent-rules \
+	--disable-examples-build \
+	--with-libz \
+	--disable-shared \
+	--enable-static \
     CC="/usr/bin/clang -isysroot $SDKROOT" \
     CPPFLAGS="-fembed-bitcode -I${LIBRESSLROOT}/include -I$SDKROOT/usr/include/" \
     CFLAGS="$CPPFLAGS -arch arm64 -pipe -no-cpp-precomp" \
@@ -528,6 +545,7 @@ if [ ${#simulator[@]} -gt 0 ]; then
   XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -headers $OUTPUT/simulator/include"
 fi
 
+rm -R $OUTPUT
 XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -output $XCFRAMEWORKS/libssh2.xcframework"
 
 echo $XCFRAMEWORK_CMD
