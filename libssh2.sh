@@ -7,7 +7,7 @@ fi
 
 if [ -z "$LIBRESSL" ]
 then
-  LIBRESSL=3.1.4
+  LIBRESSL=3.2.2
 fi
 
 if [ -z "$IOS" ]
@@ -45,8 +45,6 @@ fi
 
 XCODE=`/usr/bin/xcode-select -p`
 
-
-
 # Download libressl
 
 if [ ! -e "${LIBRESSL}.zip" ]
@@ -54,10 +52,8 @@ then
   curl -iL --max-redirs 1 -o ${LIBRESSL}.zip https://github.com/build-xcframeworks/libressl/releases/download/${LIBRESSL}/${LIBRESSL}.zip
 fi
 
-if [ ! -d $(LIBRESSL) ]
-then
-  unzip ${LIBRESSL}.zip
-fi
+
+[[ -d $(LIBRESSL) ]] || unzip ${LIBRESSL}.zip
 
 echo "Let's output all variables for the sake of the CI"
 echo "---"
@@ -545,9 +541,10 @@ if [ ${#simulator[@]} -gt 0 ]; then
   XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -headers $OUTPUT/simulator/include"
 fi
 
-rm -R $OUTPUT
+#rm -R $OUTPUT
 XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -output $XCFRAMEWORKS/libssh2.xcframework"
 
 echo $XCFRAMEWORK_CMD
+echo "----"
 eval $XCFRAMEWORK_CMD
 
