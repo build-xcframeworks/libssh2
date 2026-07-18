@@ -1,5 +1,6 @@
 libressl
-libssh2-1.9.0
+libressl-source
+libssh2-*/
 *.tar.gz
 *.zip
 3.?.?
