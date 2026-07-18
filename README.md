@@ -1,5 +1,5 @@
 # libssh2 XCFramework for iOS, macOS & Catalyst
-A script to compile libssh2 to an XCFramework supporting the latest OS versions
+A script to compile libssh2 1.11.1 with LibreSSL to an XCFramework supporting the latest OS versions
 
 Instructions:
 1. Clone:
