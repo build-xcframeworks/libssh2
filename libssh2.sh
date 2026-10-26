@@ -43,7 +43,7 @@ then
   declare -a link_targets=("macos_x86_64" "macos_arm64" "catalyst_x86_64" "catalyst_arm64" "simulator_arm64" "ios-arm64")
 fi
 
-XCODE=`/usr/bin/xcode-select -p`
+XCODE=${DEVELOPER_DIR:-$(/usr/bin/xcode-select -p)}
 
 # Build LibreSSL from the requested branch. Consumer pull requests use master;
 # LIBRESSL_REF can point at an update branch while validating it.
@@ -168,19 +168,19 @@ if elementIn "$target" "${build_targets[@]}"; then
 	--with-libz \
 	--disable-shared \
 	--enable-static \
-    CC="/usr/bin/clang -target x86_64-apple-ios${MIN_IOS_VERSION}-simulator" \
+    CC="/usr/bin/clang -target x86_64-apple-ios${MIN_IOS_VERSION}-simulator -isysroot $SDKROOT" \
     CPPFLAGS="-I$SDKROOT/usr/include/ -I${LIBRESSLROOT}/include" \
     CFLAGS="$CPPFLAGS -arch x86_64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp -isysroot $SDKROOT" \
     CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
 
   make clean
   make -j 4 install \
-    CC="/usr/bin/clang -target x86_64-apple-ios${MIN_IOS_VERSION}-simulator" \
+    CC="/usr/bin/clang -target x86_64-apple-ios${MIN_IOS_VERSION}-simulator -isysroot $SDKROOT" \
     CPPFLAGS="-I$SDKROOT/usr/include/ -I${LIBRESSLROOT}/include" \
     CFLAGS="$CPPFLAGS -arch x86_64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp -isysroot $SDKROOT" \
     CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
 	  
   printf "\n\n--> XX iOS simulator x86_64 Compilation"
   mv $PREFIX/$target/include/*.h $OUTPUT/$target/include
@@ -204,19 +204,19 @@ if elementIn "$target" "${build_targets[@]}"; then
   LIBRESSLROOT=$(resolve_path ${LIBRESSLROOT_RELATIVE})
 
   ./configure --build=aarch64-apple-darwin --host=aarch64-apple-darwin22 --with-crypto=openssl --with-libssl-prefix=${LIBRESSLROOT} --prefix="$PREFIX/$target" --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-examples-build --with-libz --disable-shared --enable-static \
-    CC="/usr/bin/clang -target arm64-apple-ios${MIN_IOS_VERSION}-simulator" \
+    CC="/usr/bin/clang -target arm64-apple-ios${MIN_IOS_VERSION}-simulator -isysroot $SDKROOT" \
     CPPFLAGS="-I$SDKROOT/usr/include/ -I${LIBRESSLROOT}/include" \
     CFLAGS="$CPPFLAGS -arch arm64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp -isysroot $SDKROOT" \
     CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
   
   make clean
   make -j 4 install \
-    CC="/usr/bin/clang -target arm64-apple-ios${MIN_IOS_VERSION}-simulator" \
+    CC="/usr/bin/clang -target arm64-apple-ios${MIN_IOS_VERSION}-simulator -isysroot $SDKROOT" \
     CPPFLAGS="-I$SDKROOT/usr/include/ -I${LIBRESSLROOT}/include" \
     CFLAGS="$CPPFLAGS -arch arm64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp -isysroot $SDKROOT" \
     CPP="/usr/bin/cpp $CPPFLAGS" \
-    LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
 	  
   printf "\n\n--> XX iOS simulator arm64 Compilation"
   mv $PREFIX/$target/include/*.h $OUTPUT/$target/include
@@ -401,7 +401,7 @@ if elementIn "$target" "${build_targets[@]}"; then
     CPPFLAGS="-fembed-bitcode -I`pwd`/../libressl/ios/include -I$SDKROOT/usr/include/" \
     CFLAGS="$CPPFLAGS -arch arm64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp" \
     CPP="/usr/bin/cpp -D__arm__=1 $CPPFLAGS" \
-    LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
+    LD="/usr/bin/ld -L${LIBRESSLROOT}"
   
   make clean
   make -j 4 install \
@@ -409,7 +409,7 @@ if elementIn "$target" "${build_targets[@]}"; then
       CPPFLAGS="-fembed-bitcode -I`pwd`/../libressl/ios/include -I$SDKROOT/usr/include/" \
       CFLAGS="$CPPFLAGS -arch arm64 -miphoneos-version-min=${MIN_IOS_VERSION} -pipe -no-cpp-precomp" \
       CPP="/usr/bin/cpp -D__arm__=1 $CPPFLAGS" \
-      LD="$DEVROOT/usr/bin/ld -L${LIBRESSLROOT}"
+      LD="/usr/bin/ld -L${LIBRESSLROOT}"
 	  
   printf "\n\n--> XX iOS arm64 Compilation"
   mv $PREFIX/$target/include/*.h $OUTPUT/$target/include
@@ -530,6 +530,7 @@ fi
 #rm -R $OUTPUT
 XCFRAMEWORK_CMD="$XCFRAMEWORK_CMD -output $XCFRAMEWORKS/libssh2.xcframework"
 
+rm -R -f $XCFRAMEWORKS/libssh2.xcframework
 echo $XCFRAMEWORK_CMD
 echo "----"
 eval $XCFRAMEWORK_CMD
